@@ -23,12 +23,12 @@
   #roles:
   #  - azure.azure_preview_modules
   vars:
-    resource_group: "TESTRG"
+    resource_group: TESTRG
     lab_name: myLab
     vn_name: myLabVirtualNetwork
     vm_name: myLabVm
     artifacts_name: myArtifacts
-    github_token: "4df3de92e776b20608595c2c4c01a88e9de1d333"
+    github_token: 4df3de92e776b20608595c2c4c01a88e9de1d333
     location: eastus
   tasks:
     - name: Create a resource group

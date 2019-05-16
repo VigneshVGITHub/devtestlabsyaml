@@ -1,0 +1,872 @@
+﻿{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "WebAppName": {
+      "defaultValue": "testAppEKCCAA",
+      "type": "String"
+    },
+    "trafficManagerProfile": {
+      "defaultValue": "EKCCtestProfile",
+      "type": "String"
+    },
+    "Production PlanName": {
+      "defaultValue": "ProducionPlan",
+      "type": "string",
+      "minLength": 1
+    },
+    "Production PlanSkuName": {
+      "type": "string",
+      "defaultValue": "B1",
+      "allowedValues": [
+        "D1",
+        "B1",
+        "B2",
+        "B3",
+        "S1",
+        "S2",
+        "S3",
+        "P1",
+        "P2",
+        "P3",
+        "P4"
+      ],
+      "metadata": {
+        "description": "Describes plan's pricing tier and capacity. Check details at https://azure.microsoft.com/en-us/pricing/details/app-service/"
+      }
+    },
+
+    "DR_ResourceGroup": {
+      "defaultValue": "ARMTESTDR",
+      "type": "string"
+    },
+    "DR_SubscriptionID": {
+      "defaultValue": "46f84318-d377-4dc4-8a19-5c6d68efe814",
+      "type": "string"
+    },
+    "DR_Location": {
+      "type": "string",
+      "defaultValue": "eastus",
+      "allowedValues": [
+        "eastus",
+        "South Central US",
+        "West US2"
+      ],
+      "metadata": {
+        "description": "This Ideally should be same location as the DR resource Group Location"
+      }
+    },
+    "DR PlanName": {
+      "defaultValue": "DRPlan",
+      "type": "string",
+      "minLength": 1
+    },
+    "DR PlanSkuName": {
+      "type": "string",
+      "defaultValue": "B1",
+      "allowedValues": [
+        "D1",
+        "B1",
+        "B2",
+        "B3",
+        "S1",
+        "S2",
+        "S3",
+        "P1",
+        "P2",
+        "P3",
+        "P4"
+      ],
+      "metadata": {
+        "description": "Describes plan's pricing tier and capacity. Check details at https://azure.microsoft.com/en-us/pricing/details/app-service/"
+      }
+    },
+    "DRAppName": {
+      "defaultValue": "testAppEKCCAADR",
+      "type": "String"
+    },
+
+    "Solution": {
+      "defaultValue": "Crew Portal",
+      "type": "string",
+      "minLength": 1
+    },
+    "Sub_Sol": {
+      "defaultValue": "Sharepoint web Site",
+      "type": "string",
+      "minLength": 1
+    },
+    "Developer": {
+      "defaultValue": "Development Owner",
+      "type": "string",
+      "minLength": 1
+    },
+
+    "GitHubrepoID": {
+      "defaultValue": "2d119a720d3b534d47f418c3b1d092fb2d1245ea",
+      "type": "string",
+      "minLength": 1
+    },
+    "Repo Auther": {
+      "defaultValue": "Azure Samples Bot",
+      "type": "string",
+      "minLength": 1
+    },
+    "Auther e-mail": {
+      "defaultValue": "acomsmpbot@microsoft.com",
+      "type": "string",
+      "minLength": 1
+    },
+
+    "DR GitHubrepoID": {
+      "defaultValue": "2d119a720d3b534d47f418c3b1d092fb2d1245ea",
+      "type": "string",
+      "minLength": 1
+    },
+    "DR Repo Auther": {
+      "defaultValue": "Azure Samples Bot",
+      "type": "string",
+      "minLength": 1
+    },
+    "DR Auther e-mail": {
+      "defaultValue": "acomsmpbot@microsoft.com",
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "variables": {},
+  "resources": [
+
+    {
+      "type": "Microsoft.Network/trafficManagerProfiles",
+      "apiVersion": "2018-04-01",
+      "name": "[parameters('trafficManagerProfile')]",
+      "location": "global",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('WebAppName'))]"
+      ],
+      "properties": {
+        "profileStatus": "Enabled",
+        "trafficRoutingMethod": "Priority",
+        "dnsConfig": {
+          "relativeName": "[parameters('trafficManagerProfile')]",
+          "ttl": 30
+        },
+        "monitorConfig": {
+          "protocol": "HTTP",
+          "port": 80,
+          "path": "/",
+          "intervalInSeconds": 30,
+          "toleratedNumberOfFailures": 3,
+          "timeoutInSeconds": 10
+        },
+        "endpoints": [
+          {
+            "id": "[concat(concat(resourceId('Microsoft.Network/trafficManagerProfiles', parameters('trafficManagerProfile')), '/azureEndpoints/'), parameters('WebAppName'))]",
+            "name": "[parameters('WebAppName')]",
+            "type": "Microsoft.Network/trafficManagerProfiles/azureEndpoints",
+            "properties": {
+              "endpointStatus": "Enabled",
+              "targetResourceId": "[resourceId('Microsoft.Web/sites', parameters('WebAppName'))]",
+              "target": "[concat( parameters('WebAppName'), 'azurewebsites.net')]",
+              "weight": 1,
+              "priority": 1,
+              "endpointLocation": "[resourceGroup().location]"
+            }
+          }
+
+        ],
+        "trafficViewEnrollmentStatus": "Disabled"
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2016-08-01",
+      "name": "[parameters('WebAppName')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', parameters('Production PlanName'))]"
+      ],
+      "tags": {
+        "Solution": "[parameters('solution')]",
+        "Sub_sol": "[parameters('sub_sol')]",
+        "Developer": "[parameters('Developer')]"
+      },
+      "kind": "app",
+      "properties": {
+        "enabled": true,
+        "hostNameSslStates": [
+          {
+            "name": "parameters('trafficeMangerProfile').trafficmanager.net",
+            "sslState": "Disabled",
+            "hostType": "Standard"
+          },
+          {
+            "name": "parameters('WebAppName').azurewebsites.net",
+            "sslState": "Disabled",
+            "hostType": "Standard"
+          },
+          {
+            "name": "parameters('WebAppName').scm.azurewebsites.net",
+            "sslState": "Disabled",
+            "hostType": "Repository"
+          }
+        ],
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('Production PlanName'))]",
+        "reserved": false,
+        "scmSiteAlsoStopped": false,
+        "clientAffinityEnabled": true,
+        "clientCertEnabled": false,
+        "hostNamesDisabled": false,
+        "containerSize": 0,
+        "dailyMemoryTimeQuota": 0,
+        "httpsOnly": false
+      },
+      "resources": [
+
+
+
+
+      ]
+    },
+    {
+      "type": "Microsoft.Web/sites/config",
+      "apiVersion": "2016-08-01",
+      "name": "[concat(parameters('WebAppName'), '/web')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('WebAppName'))]"
+      ],
+      "tags": {
+        "Solution": "parameters('solution')",
+        "Sub_sol": "parameters('sub_sol')",
+        "Developer": "parameters('Developer')"
+
+      },
+      "properties": {
+        "numberOfWorkers": 1,
+        "defaultDocuments": [
+          "Default.htm",
+          "Default.html",
+          "Default.asp",
+          "index.htm",
+          "index.html",
+          "iisstart.htm",
+          "default.aspx",
+          "index.php",
+          "hostingstart.html"
+        ],
+        "netFrameworkVersion": "v4.0",
+        "phpVersion": "5.6",
+        "pythonVersion": "",
+        "nodeVersion": "",
+        "linuxFxVersion": "",
+        "requestTracingEnabled": false,
+        "remoteDebuggingEnabled": false,
+        "httpLoggingEnabled": false,
+        "logsDirectorySizeLimit": 35,
+        "detailedErrorLoggingEnabled": false,
+        "publishingUsername": "[parameters('WebAppName')]",
+        "scmType": "ExternalGit",
+        "use32BitWorkerProcess": true,
+        "webSocketsEnabled": false,
+        "alwaysOn": false,
+        "appCommandLine": "",
+        "managedPipelineMode": "Integrated",
+        "virtualApplications": [
+          {
+            "virtualPath": "/",
+            "physicalPath": "site\\wwwroot",
+            "preloadEnabled": false,
+            "virtualDirectories": null
+          }
+        ],
+        "winAuthAdminState": 0,
+        "winAuthTenantState": 0,
+        "customAppPoolIdentityAdminState": false,
+        "customAppPoolIdentityTenantState": false,
+        "loadBalancing": "LeastRequests",
+        "routingRules": [],
+        "experiments": {
+          "rampUpRules": []
+        },
+        "autoHealEnabled": false,
+        "vnetName": "",
+        "siteAuthEnabled": false,
+        "siteAuthSettings": {
+          "enabled": null,
+          "unauthenticatedClientAction": null,
+          "tokenStoreEnabled": null,
+          "allowedExternalRedirectUrls": null,
+          "defaultProvider": null,
+          "clientId": null,
+          "clientSecret": null,
+          "clientSecretCertificateThumbprint": null,
+          "issuer": null,
+          "allowedAudiences": null,
+          "additionalLoginParams": null,
+          "isAadAutoProvisioned": false,
+          "googleClientId": null,
+          "googleClientSecret": null,
+          "googleOAuthScopes": null,
+          "facebookAppId": null,
+          "facebookAppSecret": null,
+          "facebookOAuthScopes": null,
+          "twitterConsumerKey": null,
+          "twitterConsumerSecret": null,
+          "microsoftAccountClientId": null,
+          "microsoftAccountClientSecret": null,
+          "microsoftAccountOAuthScopes": null
+        },
+        "localMySqlEnabled": false,
+        "http20Enabled": false,
+        "minTlsVersion": "1.2",
+        "ftpsState": "AllAllowed",
+        "reservedInstanceCount": 0
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites/deployments",
+      "apiVersion": "2016-08-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('WebAppName'))]"
+      ],
+      "location": "[resourceGroup().location]",
+      "name": "[concat(parameters('WebAppName'), '/depoyment')]",
+      "properties": {
+        "id": "parameters('GitHubrepoID')",
+        "status": 4,
+        "author_email": "parameters('Auther e-mail')",
+        "author": "Repo Auther",
+        "deployer": "GitHub",
+        "message": "Initializing repository files.\n",
+        "active": true
+      }
+    },
+    {
+      "name": "[parameters('Production PlanName')]",
+      "type": "Microsoft.Web/serverfarms",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-08-01",
+      "sku": {
+        "name": "[parameters('Production PlanSkuName')]"
+      },
+      "dependsOn": [],
+      "tags": {
+        "displayName": "Production Plan"
+      },
+      "properties": {
+        "name": "[parameters('Production PlanName')]",
+        "numberOfWorkers": 1
+      }
+    },
+
+    {
+      "name": "[concat(parameters('Production PlanName'), '-', resourceGroup().name)]",
+      "type": "Microsoft.Insights/autoscalesettings",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2014-04-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', parameters('Production PlanName'))]"
+      ],
+      "tags": {
+        "[concat('hidden-link:', resourceId('Microsoft.Web/serverfarms', parameters('Production PlanName')))]": "Resource",
+        "displayName": "AppINsights AutoScale"
+      },
+      "properties": {
+        "name": "[concat(parameters('Production PlanName'), '-', resourceGroup().name)]",
+        "profiles": [
+          {
+            "name": "Default",
+            "capacity": {
+              "minimum": 1,
+              "maximum": 2,
+              "default": 1
+            },
+            "rules": [
+              {
+                "metricTrigger": {
+                  "metricName": "CpuPercentage",
+                  "metricResourceUri": "[resourceId('Microsoft.Web/serverfarms', parameters('Production PlanName'))]",
+                  "timeGrain": "PT1M",
+                  "statistic": "Average",
+                  "timeWindow": "PT10M",
+                  "timeAggregation": "Average",
+                  "operator": "GreaterThan",
+                  "threshold": 80
+                },
+                "scaleAction": {
+                  "direction": "Increase",
+                  "type": "ChangeCount",
+                  "value": 1,
+                  "cooldown": "PT10M"
+                }
+              },
+              {
+                "metricTrigger": {
+                  "metricName": "CpuPercentage",
+                  "metricResourceUri": "[resourceId('Microsoft.Web/serverfarms', parameters('Production PlanName'))]",
+                  "timeGrain": "PT1M",
+                  "statistic": "Average",
+                  "timeWindow": "PT1H",
+                  "timeAggregation": "Average",
+                  "operator": "LessThan",
+                  "threshold": 60
+                },
+                "scaleAction": {
+                  "direction": "Decrease",
+                  "type": "ChangeCount",
+                  "value": 1,
+                  "cooldown": "PT1H"
+                }
+              }
+            ]
+          }
+        ],
+        "enabled": false,
+        "targetResourceUri": "[resourceId('Microsoft.Web/serverfarms', parameters('Production PlanName'))]"
+      }
+    },
+    {
+      "name": "[concat('CPUHigh ', parameters('Production PlanName'))]",
+      "type": "Microsoft.Insights/alertrules",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2014-04-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', parameters('Production PlanName'))]"
+      ],
+      "tags": {
+        "[concat('hidden-link:', resourceId('Microsoft.Web/serverfarms', parameters('Production PlanName')))]": "Resource",
+        "displayName": "CPUHigh AppINsights"
+      },
+      "properties": {
+        "name": "[concat('CPUHigh ', parameters('Production PlanName'))]",
+        "description": "[concat('The average CPU is high across all the instances of ', parameters('Production PlanName'))]",
+        "isEnabled": false,
+        "condition": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+          "dataSource": {
+            "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+            "resourceUri": "[resourceId('Microsoft.Web/serverfarms', parameters('Production PlanName'))]",
+            "metricName": "CpuPercentage"
+          },
+          "operator": "GreaterThan",
+          "threshold": 90,
+          "windowSize": "PT15M"
+        },
+        "action": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+          "sendToServiceOwners": true,
+          "customEmails": []
+        }
+      }
+    },
+    {
+      "name": "[concat('LongHttpQueue ', parameters('Production PlanName'))]",
+      "type": "Microsoft.Insights/alertrules",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2014-04-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', parameters('Production PlanName'))]"
+      ],
+      "tags": {
+        "[concat('hidden-link:', resourceId('Microsoft.Web/serverfarms', parameters('Production PlanName')))]": "Resource",
+        "displayName": "LongHttpQueue AppINsights"
+      },
+      "properties": {
+        "name": "[concat('LongHttpQueue ', parameters('Production PlanName'))]",
+        "description": "[concat('The HTTP queue for the instances of ', parameters('Production PlanName'), ' has a large number of pending requests.')]",
+        "isEnabled": false,
+        "condition": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+          "dataSource": {
+            "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+            "resourceUri": "[resourceId('Microsoft.Web/serverfarms', parameters('Production PlanName'))]",
+            "metricName": "HttpQueueLength"
+          },
+          "operator": "GreaterThan",
+          "threshold": 100,
+          "windowSize": "PT5M"
+        },
+        "action": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+          "sendToServiceOwners": true,
+          "customEmails": []
+        }
+      }
+    },
+    {
+      "name": "[concat('ServerErrors ', 'AppINsights')]",
+      "type": "Microsoft.Insights/alertrules",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2014-04-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('WebAppName'))]"
+      ],
+      "tags": {
+        "[concat('hidden-link:', resourceId('Microsoft.Web/sites', parameters('WebAppName')))]": "Resource",
+        "displayName": "ServerErrors AppINsights"
+      },
+      "properties": {
+        "name": "[concat('ServerErrors ', parameters('WebAppName'))]",
+        "description": "[concat(parameters('WebAppName'), ' has some server errors, status code 5xx.')]",
+        "isEnabled": false,
+        "condition": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+          "dataSource": {
+            "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+            "resourceUri": "[resourceId('Microsoft.Web/sites', parameters('WebAppName'))]",
+            "metricName": "Http5xx"
+          },
+          "operator": "GreaterThan",
+          "threshold": 0,
+          "windowSize": "PT5M"
+        },
+        "action": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+          "sendToServiceOwners": true,
+          "customEmails": []
+        }
+      }
+    },
+    {
+      "name": "[concat('ForbiddenRequests ', 'AppINsights')]",
+      "type": "Microsoft.Insights/alertrules",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2014-04-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('WebAppName'))]"
+      ],
+      "tags": {
+        "displayName": "ForbiddenRequests AppINsights"
+      },
+      "properties": {
+        "name": "[concat('ForbiddenRequests ', parameters('WebAppName'))]",
+        "description": "[concat(parameters('WebAppName'), ' has some requests that are forbidden, status code 403.')]",
+        "isEnabled": false,
+        "condition": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+          "dataSource": {
+            "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+            "resourceUri": "[resourceId('Microsoft.Web/sites', parameters('WebAppName'))]",
+            "metricName": "Http403"
+          },
+          "operator": "GreaterThan",
+          "threshold": 0,
+          "windowSize": "PT5M"
+        },
+        "action": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+          "sendToServiceOwners": true,
+          "customEmails": []
+        }
+      }
+    },
+    {
+      "name": "AppINsights",
+      "type": "Microsoft.Insights/components",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2014-04-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('WebAppName'))]"
+      ],
+      "tags": {
+        "displayName": "Component AppINsights"
+      },
+      "properties": {
+        "applicationId": "[resourceId('Microsoft.Web/sites', parameters('WebAppName'))]"
+      }
+    },
+
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2018-05-01",
+      "name": "DRTemplate",
+      "resourceGroup": "[parameters('DR_ResourceGroup')]",
+      "subscriptionId": "[parameters('DR_SubscriptionID')]",
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "resources": [
+
+            {
+              "name": "[parameters('DR PlanName')]",
+              "type": "Microsoft.Web/serverfarms",
+              "location": "[parameters('DR_Location')]",
+              "apiVersion": "2015-08-01",
+              "sku": {
+                "name": "[parameters('DR PlanSkuName')]"
+              },
+              "dependsOn": [],
+              "tags": {
+                "displayName": "[parameters('DR PlanName')]"
+              },
+              "properties": {
+                "name": "[parameters('DR PlanName')]",
+                "numberOfWorkers": 1
+              }
+            },
+            {
+              "type": "Microsoft.Web/sites",
+              "apiVersion": "2016-08-01",
+              "name": "[parameters('DRAppName')]",
+              "location": "[parameters('DR_Location')]",
+              "dependsOn": [
+                "[parameters('DR PlanName')]"
+              ],
+              "tags": {
+                "Solution": "[parameters('solution')]",
+                "Sub_sol": "[parameters('sub_sol')]",
+                "Developer": "[parameters('Developer')]"
+              },
+              "kind": "app",
+              "properties": {
+                "enabled": true,
+                "hostNameSslStates": [
+                  {
+                    "name": "parameters('trafficeMangerProfile').trafficmanager.net",
+                    "sslState": "Disabled",
+                    "hostType": "Standard"
+                  },
+                  {
+                    "name": "parameters('DRAppName').azurewebsites.net",
+                    "sslState": "Disabled",
+                    "hostType": "Standard"
+                  },
+                  {
+                    "name": "parameters('DRAppName').scm.azurewebsites.net",
+                    "sslState": "Disabled",
+                    "hostType": "Repository"
+                  }
+                ],
+                "serverFarmId": "[parameters('DR PlanName')]",
+                "reserved": false,
+                "scmSiteAlsoStopped": false,
+                "clientAffinityEnabled": true,
+                "clientCertEnabled": false,
+                "hostNamesDisabled": false,
+                "containerSize": 0,
+                "dailyMemoryTimeQuota": 0,
+                "httpsOnly": false
+              },
+              "resources": [
+
+
+
+
+              ]
+            },
+            {
+              "type": "Microsoft.Web/sites/deployments",
+              "apiVersion": "2016-08-01",
+              "dependsOn": [
+                "[parameters('DRAppName')]"
+              ],
+              "location": "[parameters('DR_Location')]",
+              "name": "[concat(parameters('DRAppName'), '/depoyment')]",
+              "properties": {
+                "id": "parameters('DR GitHubrepoID')",
+                "status": 4,
+                "author_email": "parameters('DR Auther e-mail')",
+                "author": "DR Repo Auther",
+                "deployer": "GitHub",
+                "message": "Initializing repository files.\n",
+                "active": true
+              }
+            },
+            {
+              "name": "[concat(parameters('DR PlanName'), '-', parameters('DR_ResourceGroup'))]",
+              "type": "Microsoft.Insights/autoscalesettings",
+              "location": "[parameters('DR_Location')]",
+              "apiVersion": "2014-04-01",
+              "dependsOn": [
+                "[parameters('DR PlanName')]"
+              ],
+              "tags": {
+                "[concat('hidden-link:', parameters('DR PlanName'))]": "Resource",
+                "displayName": "AppINsights AutoScale"
+              },
+              "properties": {
+                "name": "[concat(parameters('DR PlanName'), '-', parameters('DR_ResourceGroup'))]",
+                "profiles": [
+                  {
+                    "name": "Default",
+                    "capacity": {
+                      "minimum": 1,
+                      "maximum": 2,
+                      "default": 1
+                    },
+                    "rules": [
+                      {
+                        "metricTrigger": {
+                          "metricName": "CpuPercentage",
+                          "metricResourceUri": "[concat('/subscriptions/', parameters('DR_SubscriptionID'),'/resourceGroups/', parameters('DR_Resourcegroup'),'/providers/Microsoft.Web/serverfarms/',  parameters('DR PlanName'))]",
+                          "timeGrain": "PT1M",
+                          "statistic": "Average",
+                          "timeWindow": "PT10M",
+                          "timeAggregation": "Average",
+                          "operator": "GreaterThan",
+                          "threshold": 80
+                        },
+                        "scaleAction": {
+                          "direction": "Increase",
+                          "type": "ChangeCount",
+                          "value": 1,
+                          "cooldown": "PT10M"
+                        }
+                      },
+                      {
+                        "metricTrigger": {
+                          "metricName": "CpuPercentage",
+                          "metricResourceUri": "[concat('/subscriptions/', parameters('DR_SubscriptionID'),'/resourceGroups/', parameters('DR_Resourcegroup'),'/providers/Microsoft.Web/serverfarms/',  parameters('DR PlanName'))]",
+                          "timeGrain": "PT1M",
+                          "statistic": "Average",
+                          "timeWindow": "PT1H",
+                          "timeAggregation": "Average",
+                          "operator": "LessThan",
+                          "threshold": 60
+                        },
+                        "scaleAction": {
+                          "direction": "Decrease",
+                          "type": "ChangeCount",
+                          "value": 1,
+                          "cooldown": "PT1H"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "enabled": false,
+                "targetResourceUri": "[concat('/subscriptions/', parameters('DR_SubscriptionID'),'/resourceGroups/', parameters('DR_Resourcegroup'),'/providers/Microsoft.Web/serverfarms/',  parameters('DR PlanName'))]"
+              }
+            },
+            {
+              "name": "[concat('CPUHigh ', parameters('DR PlanName'))]",
+              "type": "Microsoft.Insights/alertrules",
+              "location": "[parameters('DR_Location')]",
+              "apiVersion": "2014-04-01",
+              "dependsOn": [
+                "[parameters('DR PlanName')]"
+              ],
+              "tags": {
+                "[concat('hidden-link:', parameters('Production PlanName'))]": "Resource",
+                "displayName": "CPUHigh AppINsights"
+              },
+              "properties": {
+                "name": "[concat('CPUHigh ', parameters('DR PlanName'))]",
+                "description": "[concat('The average CPU is high across all the instances of ', parameters('DR PlanName'))]",
+                "isEnabled": false,
+                "condition": {
+                  "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+                  "dataSource": {
+                    "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+                    "resourceUri": "[concat('/subscriptions/', parameters('DR_SubscriptionID'),'/resourceGroups/', parameters('DR_Resourcegroup'),'/providers/Microsoft.Web/serverfarms/',  parameters('DR PlanName'))]",
+                    "metricName": "CpuPercentage"
+                  },
+                  "operator": "GreaterThan",
+                  "threshold": 90,
+                  "windowSize": "PT15M"
+                },
+                "action": {
+                  "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+                  "sendToServiceOwners": true,
+                  "customEmails": []
+                }
+              }
+            },
+            {
+              "name": "[concat('LongHttpQueue ', parameters('DR PlanName'))]",
+              "type": "Microsoft.Insights/alertrules",
+              "location": "[parameters('DR_Location')]",
+              "apiVersion": "2014-04-01",
+              "dependsOn": [
+                "[parameters('DR PlanName')]"
+              ],
+              "tags": {
+                "[concat('hidden-link:', parameters('DR PlanName'))]": "Resource",
+                "displayName": "LongHttpQueue AppINsights"
+              },
+              "properties": {
+                "name": "[concat('LongHttpQueue ', parameters('DR PlanName'))]",
+                "description": "[concat('The HTTP queue for the instances of ', parameters('DR PlanName'), ' has a large number of pending requests.')]",
+                "isEnabled": false,
+                "condition": {
+                  "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+                  "dataSource": {
+                    "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+                    "resourceUri": "[concat('/subscriptions/', parameters('DR_SubscriptionID'),'/resourceGroups/', parameters('DR_Resourcegroup'),'/providers/Microsoft.Web/serverfarms/',  parameters('DR PlanName'))]",
+                    "metricName": "HttpQueueLength"
+                  },
+                  "operator": "GreaterThan",
+                  "threshold": 100,
+                  "windowSize": "PT5M"
+                },
+                "action": {
+                  "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+                  "sendToServiceOwners": true,
+                  "customEmails": []
+                }
+              }
+            },
+            {
+              "name": "[concat('ServerErrors ', 'AppINsights')]",
+              "type": "Microsoft.Insights/alertrules",
+              "location": "[parameters('DR_Location')]",
+              "apiVersion": "2014-04-01",
+              "dependsOn": [
+                "[parameters('DRAppName')]"
+              ],
+              "tags": {
+                "[concat('hidden-link:', parameters('DRAppName'))]": "Resource",
+                "displayName": "ServerErrors AppINsights"
+              },
+              "properties": {
+                "name": "[concat('ServerErrors ', parameters('DRAppName'))]",
+                "description": "[concat(parameters('DRAppName'), ' has some server errors, status code 5xx.')]",
+                "isEnabled": false,
+                "condition": {
+                  "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+                  "dataSource": {
+                    "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+                    "resourceUri": [ "concat('/subscriptions/'", "parameters('DR_SubscriptionID')", "/resourceGroups/", "parameters('DR_ResourceGroup')", "/providers/Microsoft.Web/sites/", "parameters('DRAppName'))" ],
+                    "metricName": "Http5xx"
+                  },
+                  "operator": "GreaterThan",
+                  "threshold": 0,
+                  "windowSize": "PT5M"
+                },
+                "action": {
+                  "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+                  "sendToServiceOwners": true,
+                  "customEmails": []
+                }
+              }
+            },
+            {
+              "name": "AppINsights",
+              "type": "Microsoft.Insights/components",
+              "location": "[parameters('DR_Location')]",
+              "apiVersion": "2014-04-01",
+              "dependsOn": [
+                "[parameters('DRAppName')]"
+              ],
+              "tags": {
+                "displayName": "Component AppINsights"
+              },
+              "properties": {
+                "applicationId": "[concat('/subscriptions/', parameters('DR_SubscriptionID'), '/resourceGroups/', parameters('DR_ResourceGroup'),'/providers/Microsoft.Web/sites/',  parameters('DRAppName'))]"
+              }
+            }
+          ]
+        }
+      }
+    }
+
+  ]
+}
+
+
+
+

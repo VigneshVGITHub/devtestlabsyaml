@@ -3,7 +3,7 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "WebAppName": {
-      "defaultValue": "testAppEKCCAA",
+      "defaultValue": "testAppEKCCPAA",
       "type": "String"
     },
     "trafficManagerProfile": {
